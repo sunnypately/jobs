@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CORRIDOR — Baltimore → Richmond Physician Relocation Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<style>
+  :root{
+    --bg:#0f0f0f; --panel:#161616; --panel2:#1c1c1c; --line:#2a2a2a;
+    --gold:#c9a84c; --gold-dim:#8c7530; --ink:#e8e4d8; --muted:#8a857a;
+    --hosp:#d6553f; --home:#c9a84c; --school:#4fb0c6; --nicu:#7dd181;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:'JetBrains Mono',monospace;overflow:hidden}
+  .app{display:flex;height:100vh;width:100vw}
+
+  /* ---- Sidebar ---- */
+  .side{width:392px;min-width:392px;height:100%;background:var(--panel);border-right:1px solid var(--line);
+        display:flex;flex-direction:column;overflow:hidden}
+  .brand{padding:18px 20px 14px;border-bottom:1px solid var(--line);background:
+        linear-gradient(180deg,#191712 0%,var(--panel) 100%)}
+  .brand h1{font-family:'JetBrains Mono';font-size:11px;letter-spacing:3px;color:var(--gold);font-weight:700}
+  .brand .sub{font-family:'Libre Baskerville';font-size:20px;color:var(--ink);margin-top:6px;line-height:1.25}
+  .brand .meta{font-size:9.5px;color:var(--muted);margin-top:8px;letter-spacing:.5px}
+  .scroll{overflow-y:auto;flex:1;padding:0 20px 40px}
+  .scroll::-webkit-scrollbar{width:7px}
+  .scroll::-webkit-scrollbar-thumb{background:#333;border-radius:4px}
+  section.blk{margin-top:22px}
+  .lbl{font-size:10px;letter-spacing:2.5px;color:var(--gold-dim);text-transform:uppercase;
+       border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:12px;font-weight:700}
+
+  /* layer toggles */
+  .layer{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);
+         border-radius:6px;margin-bottom:8px;cursor:pointer;transition:.15s;background:var(--panel2);user-select:none}
+  .layer:hover{border-color:var(--gold-dim)}
+  .layer.off{opacity:.4}
+  .dot{width:13px;height:13px;border-radius:50%;flex:none;box-shadow:0 0 8px currentColor}
+  .layer .nm{font-size:12px;flex:1}
+  .layer .ct{font-size:10px;color:var(--muted)}
+  .swh{color:var(--hosp)} .swo{color:var(--home)} .sws{color:var(--school)}
+
+  .seg{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .seg button{flex:1;min-width:54px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+        font-family:'JetBrains Mono';font-size:10px;padding:7px 4px;border-radius:5px;cursor:pointer;letter-spacing:1px}
+  .seg button.on{background:var(--gold);color:#15130c;border-color:var(--gold);font-weight:700}
+
+  .chk{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink);margin:7px 0;cursor:pointer}
+  .chk input{accent-color:var(--gold);width:14px;height:14px}
+
+  .rng label{font-size:10px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:6px}
+  .rng input[type=range]{width:100%;accent-color:var(--gold)}
+  .rngval{color:var(--gold);font-weight:700}
+
+  /* salary cards */
+  .sal{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:11px 12px}
+  .card .role{font-size:9.5px;letter-spacing:1.5px;color:var(--gold-dim);text-transform:uppercase}
+  .card .big{font-family:'Libre Baskerville';font-size:21px;color:var(--gold);margin-top:4px}
+  .card .rngtxt{font-size:9.5px;color:var(--muted);margin-top:3px}
+  .note{font-size:10px;color:var(--muted);line-height:1.6;margin-top:10px}
+  .prose{font-size:11px;line-height:1.7;color:#cfcabd;margin-top:10px}
+
+  .job{display:block;font-size:11px;color:var(--ink);text-decoration:none;padding:7px 10px;border:1px solid var(--line);
+       border-radius:5px;margin-bottom:6px;transition:.15s;background:var(--panel2)}
+  .job:hover{border-color:var(--gold);color:var(--gold)}
+  .job span{color:var(--muted);font-size:9px;display:block;margin-top:2px}
+
+  .disc{font-size:9.5px;color:var(--muted);line-height:1.65;background:#13110c;border:1px solid #241f12;
+        border-radius:6px;padding:11px 12px}
+  .disc b{color:var(--gold-dim)}
+
+  /* ---- Map ---- */
+  .mapwrap{flex:1;position:relative}
+  #map{width:100%;height:100%;background:#0b0b0b}
+  .leaflet-popup-content-wrapper{background:#15130d;color:var(--ink);border:1px solid var(--gold-dim);
+        border-radius:8px;font-family:'JetBrains Mono';box-shadow:0 8px 30px rgba(0,0,0,.6)}
+  .leaflet-popup-tip{background:#15130d;border:1px solid var(--gold-dim)}
+  .leaflet-popup-content{margin:13px 15px;line-height:1.5}
+  .pop h3{font-family:'Libre Baskerville';font-size:15px;color:var(--gold);margin-bottom:3px;line-height:1.2}
+  .pop .tag{display:inline-block;font-size:8.5px;letter-spacing:1px;padding:2px 7px;border-radius:3px;
+        margin:3px 4px 6px 0;text-transform:uppercase;font-weight:700}
+  .pop .row{font-size:11px;color:#d8d3c6;margin:3px 0}
+  .pop .row b{color:var(--gold-dim);font-weight:500}
+  .pop a{color:var(--school);font-size:10.5px;text-decoration:none;border-bottom:1px dotted var(--school)}
+  .pop a.gold{color:var(--gold);border-color:var(--gold)}
+  .pin{border-radius:50%;border:2px solid #0f0f0f;box-shadow:0 0 0 1px rgba(255,255,255,.15),0 2px 6px rgba(0,0,0,.6);
+       display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#0f0f0f}
+  .legend{position:absolute;bottom:16px;right:16px;z-index:500;background:rgba(18,18,18,.92);border:1px solid var(--line);
+       border-radius:8px;padding:11px 13px;font-size:10px;backdrop-filter:blur(4px)}
+  .legend .li{display:flex;align-items:center;gap:8px;margin:4px 0;color:var(--muted)}
+  .legend .li .dot{width:10px;height:10px}
+  .toggleSide{position:absolute;top:12px;left:12px;z-index:600;display:none}
+
+  @media (max-width:860px){
+    .app{flex-direction:column}
+    .side{width:100%;min-width:0;height:auto;max-height:48vh;border-right:none;border-bottom:1px solid var(--line)}
+    .mapwrap{flex:1;min-height:52vh}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <h1>CORRIDOR · I-95 ATLAS</h1>
+      <div class="sub">Baltimore → Richmond<br>Physician Relocation Map</div>
+      <div class="meta">HOSPITALIST · NEONATOLOGY · TOLL BROTHERS · SCHOOLS · WALKABILITY</div>
+    </div>
+    <div class="scroll">
+
+      <section class="blk">
+        <div class="lbl">Map Layers</div>
+        <div id="lyrHosp" class="layer" data-l="hosp"><span class="dot swh">●</span><span class="nm">Hospitals</span><span class="ct" id="cHosp"></span></div>
+        <div id="lyrHome" class="layer" data-l="home"><span class="dot swo">●</span><span class="nm">Toll Brothers homes</span><span class="ct" id="cHome"></span></div>
+        <div id="lyrSch" class="layer" data-l="school"><span class="dot sws">●</span><span class="nm">Top schools</span><span class="ct" id="cSch"></span></div>
+      </section>
+
+      <section class="blk">
+        <div class="lbl">Filter by State</div>
+        <div class="seg" id="stateSeg">
+          <button data-s="all" class="on">ALL</button>
+          <button data-s="MD">MD</button>
+          <button data-s="DC">DC</button>
+          <button data-s="VA">VA</button>
+        </div>
+      </section>
+
+      <section class="blk">
+        <div class="lbl">Hospital Focus</div>
+        <label class="chk"><input type="checkbox" id="fHospitalist" checked> Has hospitalist program</label>
+        <label class="chk"><input type="checkbox" id="fNeo"> NICU / neonatology only</label>
+      </section>
+
+      <section class="blk rng">
+        <div class="lbl">Home Price Ceiling</div>
+        <label>Show homes from ≤ <span class="rngval" id="priceOut">$1.5M</span></label>
+        <input type="range" id="priceRange" min="500000" max="1500000" step="50000" value="1500000">
+      </section>
+
+      <section class="blk">
+        <div class="lbl">Avg. Compensation (2025–26)</div>
+        <div class="sal">
+          <div class="card"><div class="role">Hospitalist</div><div class="big">$285K</div><div class="rngtxt">range ~$245K–$340K+</div></div>
+          <div class="card"><div class="role">Neonatology</div><div class="big">$310K</div><div class="rngtxt">range ~$290K–$370K+</div></div>
+        </div>
+        <div class="prose">
+          For the corridor, internal-medicine hospitalist base compensation clusters in the <b style="color:var(--gold-dim)">$270K–$310K</b> band
+          (Salary.com pegs VA ≈ $271K and MD ≈ $278K; Indeed/Marit report VA ≈ $296–310K). Nocturnist premiums, RVU bonuses, and shift differentials
+          push top earners past $340K. Neonatology averages run a touch higher — Salary.com lists VA ≈ $291K and MD ≈ $298K, while survey-based
+          sources (SalaryExpert, ERI) including bonus put the figure near $360K+, with academic/NICU-call roles and senior attendings reaching $400K+.
+          Figures are market averages, not specific offers — always verify against MGMA benchmarks and the actual contract.
+        </div>
+      </section>
+
+      <section class="blk">
+        <div class="lbl">Where to Apply — Hospitalist</div>
+        <a class="job" target="_blank" href="https://careercenter.hospitalmedicine.org/jobs">SHM Career Center<span>Society of Hospital Medicine · the specialty board</span></a>
+        <a class="job" target="_blank" href="https://www.practicelink.com/jobs/search/hospitalist/">PracticeLink — Hospitalist<span>largest physician job board</span></a>
+        <a class="job" target="_blank" href="https://www.indeed.com/jobs?q=hospitalist&l=Virginia">Indeed — Hospitalist (VA/MD)<span>aggregated openings</span></a>
+        <a class="job" target="_blank" href="https://nejmcareercenter.org/jobs/?keywords=hospitalist">NEJM CareerCenter<span>academic + community roles</span></a>
+      </section>
+
+      <section class="blk">
+        <div class="lbl">Where to Apply — Neonatology</div>
+        <a class="job" target="_blank" href="https://careers.aap.org/jobs/?keywords=neonatology">AAP PedJobs / Career Center<span>Am. Academy of Pediatrics · neonatology</span></a>
+        <a class="job" target="_blank" href="https://www.practicelink.com/jobs/search/neonatology/">PracticeLink — Neonatology<span>NICU & academic posts</span></a>
+        <a class="job" target="_blank" href="https://www.indeed.com/jobs?q=neonatologist&l=Virginia">Indeed — Neonatologist (VA/MD)<span>aggregated openings</span></a>
+        <a class="job" target="_blank" href="https://nejmcareercenter.org/jobs/?keywords=neonatology">NEJM CareerCenter<span>fellowship-trained roles</span></a>
+      </section>
+
+      <section class="blk">
+        <div class="lbl">Verify Scores</div>
+        <a class="job" target="_blank" href="https://www.walkscore.com/">Walk Score — by address<span>walk / transit / bike scores</span></a>
+        <a class="job" target="_blank" href="https://www.greatschools.org/">GreatSchools<span>school ratings & boundaries</span></a>
+        <a class="job" target="_blank" href="https://www.niche.com/k12/search/best-public-high-schools/">Niche — Best Public Schools<span>rankings by district</span></a>
+      </section>
+
+      <section class="blk">
+        <div class="lbl">Read Me — Data Notes</div>
+        <div class="disc">
+          <b>Researched (May 2026):</b> Toll Brothers communities, starting prices & sq-ft, and physician salary bands come from live web data
+          (tollbrothers.com, Salary.com, Indeed, ZipRecruiter, ERI).<br><br>
+          <b>Estimated:</b> Walk Scores and school ratings on home pins are my approximations to orient you — verify each via the links above.<br><br>
+          <b>Live, not listed:</b> Specific job openings change daily, so the map links to careers pages & boards rather than freezing today's postings.
+          Hospital coordinates are approximate. Toll Brothers builds little in metro Richmond — the home layer concentrates in NoVA & the MD DC suburbs.
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <div class="mapwrap">
+    <div id="map"></div>
+    <div class="legend">
+      <div class="li"><span class="dot" style="background:var(--hosp);color:var(--hosp)"></span>Hospital</div>
+      <div class="li"><span class="dot" style="background:var(--nicu);color:var(--nicu)"></span>Hospital w/ NICU</div>
+      <div class="li"><span class="dot" style="background:var(--home);color:var(--home)"></span>Toll Brothers home</div>
+      <div class="li"><span class="dot" style="background:var(--school);color:var(--school)"></span>Top school</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+/* ============ DATA ============ */
+const HOSP = [
+ {n:"Johns Hopkins Hospital",sys:"Johns Hopkins Medicine",city:"Baltimore",st:"MD",lat:39.2965,lng:-76.5919,nicu:"Level IV",url:"https://jobs.hopkinsmedicine.org/"},
+ {n:"University of Maryland Medical Center",sys:"UMMS",city:"Baltimore",st:"MD",lat:39.2877,lng:-76.6225,nicu:"Level IV",url:"https://www.umms.org/careers"},
+ {n:"Sinai Hospital",sys:"LifeBridge Health",city:"Baltimore",st:"MD",lat:39.3536,lng:-76.6735,nicu:"Level III",url:"https://www.lifebridgehealth.org/Careers.aspx"},
+ {n:"MedStar Franklin Square",sys:"MedStar Health",city:"Baltimore",st:"MD",lat:39.3219,lng:-76.4861,nicu:"Level III",url:"https://www.medstarhealth.org/about/careers"},
+ {n:"Howard County General",sys:"Johns Hopkins Medicine",city:"Columbia",st:"MD",lat:39.2167,lng:-76.8344,nicu:"Level III",url:"https://jobs.hopkinsmedicine.org/"},
+ {n:"Anne Arundel Medical Center",sys:"Luminis Health",city:"Annapolis",st:"MD",lat:38.9952,lng:-76.5483,nicu:"Level III",url:"https://www.luminishealth.org/en/careers"},
+ {n:"Holy Cross Hospital",sys:"Holy Cross Health",city:"Silver Spring",st:"MD",lat:39.0237,lng:-77.0535,nicu:"Level III-C",url:"https://www.holycrosshealth.org/careers"},
+ {n:"Shady Grove Medical Center",sys:"Adventist HealthCare",city:"Rockville",st:"MD",lat:39.1099,lng:-77.1869,nicu:"Level III",url:"https://www.adventisthealthcare.com/careers/"},
+ {n:"Suburban Hospital",sys:"Johns Hopkins Medicine",city:"Bethesda",st:"MD",lat:39.0010,lng:-77.1158,nicu:null,url:"https://jobs.hopkinsmedicine.org/"},
+ {n:"MedStar Montgomery",sys:"MedStar Health",city:"Olney",st:"MD",lat:39.1532,lng:-77.0586,nicu:null,url:"https://www.medstarhealth.org/about/careers"},
+ {n:"Children's National Hospital",sys:"Children's National",city:"Washington",st:"DC",lat:38.9276,lng:-77.0125,nicu:"Level IV (referral)",url:"https://www.childrensnational.org/careers"},
+ {n:"MedStar Washington Hospital Center",sys:"MedStar Health",city:"Washington",st:"DC",lat:38.9281,lng:-77.0119,nicu:"Level III",url:"https://www.medstarhealth.org/about/careers"},
+ {n:"Inova Fairfax Hospital",sys:"Inova",city:"Falls Church",st:"VA",lat:38.8534,lng:-77.2305,nicu:"Level IV",url:"https://www.inova.org/careers"},
+ {n:"Inova Loudoun Hospital",sys:"Inova",city:"Leesburg",st:"VA",lat:39.0509,lng:-77.5263,nicu:"Level III",url:"https://www.inova.org/careers"},
+ {n:"Inova Alexandria Hospital",sys:"Inova",city:"Alexandria",st:"VA",lat:38.8170,lng:-77.1023,nicu:"Level II",url:"https://www.inova.org/careers"},
+ {n:"Inova Fair Oaks Hospital",sys:"Inova",city:"Fairfax",st:"VA",lat:38.8676,lng:-77.3736,nicu:null,url:"https://www.inova.org/careers"},
+ {n:"Virginia Hospital Center",sys:"VHC Health",city:"Arlington",st:"VA",lat:38.8869,lng:-77.1162,nicu:"Level III",url:"https://www.vhchealth.org/careers"},
+ {n:"Reston Hospital Center",sys:"HCA Virginia",city:"Reston",st:"VA",lat:38.9510,lng:-77.3413,nicu:"Level III",url:"https://careers.hcahealthcare.com/"},
+ {n:"StoneSprings Hospital",sys:"HCA Virginia",city:"Dulles",st:"VA",lat:38.9410,lng:-77.5170,nicu:null,url:"https://careers.hcahealthcare.com/"},
+ {n:"Sentara Northern Virginia",sys:"Sentara Health",city:"Woodbridge",st:"VA",lat:38.6390,lng:-77.2710,nicu:"Level III",url:"https://www.sentaracareers.com/"},
+ {n:"Mary Washington Hospital",sys:"Mary Washington Healthcare",city:"Fredericksburg",st:"VA",lat:38.3032,lng:-77.4830,nicu:"Level III",url:"https://www.marywashingtonhealthcare.com/careers"},
+ {n:"Spotsylvania Regional",sys:"HCA Virginia",city:"Fredericksburg",st:"VA",lat:38.2390,lng:-77.5560,nicu:null,url:"https://careers.hcahealthcare.com/"},
+ {n:"VCU Medical Center",sys:"VCU Health",city:"Richmond",st:"VA",lat:37.5407,lng:-77.4290,nicu:"Level IV",url:"https://careers.vcuhealth.org/"},
+ {n:"Children's Hospital of Richmond at VCU",sys:"VCU Health / CHoR",city:"Richmond",st:"VA",lat:37.5435,lng:-77.4308,nicu:"Level IV (referral)",url:"https://careers.vcuhealth.org/"},
+ {n:"Henrico Doctors' Hospital",sys:"HCA Virginia",city:"Richmond",st:"VA",lat:37.5910,lng:-77.5640,nicu:"Level III",url:"https://careers.hcahealthcare.com/"},
+ {n:"Chippenham Hospital",sys:"HCA Virginia",city:"Richmond",st:"VA",lat:37.4880,lng:-77.5240,nicu:"Level III",url:"https://careers.hcahealthcare.com/"},
+ {n:"Johnston-Willis Hospital",sys:"HCA Virginia",city:"Richmond",st:"VA",lat:37.5145,lng:-77.5790,nicu:null,url:"https://careers.hcahealthcare.com/",home:true},
+ {n:"Bon Secours St. Mary's",sys:"Bon Secours",city:"Richmond",st:"VA",lat:37.5995,lng:-77.4980,nicu:"Level III",url:"https://careers.bonsecours.com/"},
+ {n:"Bon Secours Memorial Regional",sys:"Bon Secours",city:"Mechanicsville",st:"VA",lat:37.6090,lng:-77.3360,nicu:null,url:"https://careers.bonsecours.com/"}
+];
+
+const HOME = [
+ {n:"Kings Valley View",city:"Germantown",county:"Montgomery",st:"MD",lat:39.2210,lng:-77.2990,price:1100000,priceTxt:"from $1.1M",sqft:"3,459–4,011+",type:"Single-Family",status:"Coming Summer 2026",walk:22,school:8,url:"https://www.tollbrothers.com/luxury-homes-for-sale/Maryland/Kings-Valley-View"},
+ {n:"Chevy Chase Crossing",city:"Chevy Chase",county:"Montgomery",st:"MD",lat:38.9850,lng:-77.0780,price:1300000,priceTxt:"from ~$1.3M",sqft:"2,424–3,598",type:"Townhome",status:"Selling",walk:80,school:9,url:"https://www.tollbrothers.com/luxury-homes-for-sale/Maryland/Chevy-Chase-Crossing"},
+ {n:"Rockville Condos",city:"Rockville",county:"Montgomery",st:"MD",lat:39.0840,lng:-77.1530,price:600000,priceTxt:"TBD (condo)",sqft:"1,470–2,490",type:"Condo",status:"Coming Soon",walk:70,school:8,url:"https://www.tollbrothers.com/luxury-homes/Montgomery-County-MD"},
+ {n:"Ellicott City / Howard Co.",city:"Ellicott City",county:"Howard",st:"MD",lat:39.2670,lng:-76.7980,price:900000,priceTxt:"from ~$900K",sqft:"varies",type:"Single-Family",status:"See site",walk:25,school:9,url:"https://www.tollbrothers.com/luxury-homes/Baltimore-MD"},
+ {n:"Middle River (Baltimore Co.)",city:"Middle River",county:"Baltimore",st:"MD",lat:39.3330,lng:-76.4400,price:550000,priceTxt:"from ~$550K",sqft:"varies",type:"Townhome/SF",status:"See site",walk:30,school:6,url:"https://www.tollbrothers.com/luxury-homes/Middle-River-MD"},
+ {n:"Upper Marlboro",city:"Upper Marlboro",county:"Prince George's",st:"MD",lat:38.8150,lng:-76.7490,price:650000,priceTxt:"from ~$650K",sqft:"varies",type:"Single-Family",status:"See site",walk:18,school:6,url:"https://www.tollbrothers.com/luxury-homes/Maryland"},
+ {n:"Toll Brothers at West Park",city:"Ashburn (Brambleton)",county:"Loudoun",st:"VA",lat:38.9850,lng:-77.5350,price:700000,priceTxt:"upper $700s",sqft:"up to 3,300",type:"Single-Family",status:"Coming Soon",walk:45,school:9,url:"https://www.tollbrothers.com/luxury-homes/Loudoun-County-VA"},
+ {n:"Parkside Village",city:"Aldie / Ashburn",county:"Loudoun",st:"VA",lat:38.9700,lng:-77.6400,price:900000,priceTxt:"mid-$900s",sqft:"2,542–7,268+",type:"Single-Family",status:"Selling (5 collections)",walk:20,school:9,url:"https://www.tollbrothers.com/blog/parkside-village-loudoun-county-virginia-new-models-collections"},
+ {n:"Cedar Terrace",city:"South Riding / Chantilly",county:"Loudoun",st:"VA",lat:38.9200,lng:-77.5050,price:500000,priceTxt:"mid-$500s",sqft:"1,470–2,490",type:"Townhome / Condo",status:"Move-ins fall 2026",walk:42,school:9,url:"https://www.tollbrothers.com/luxury-homes-for-sale/Virginia"},
+ {n:"Riverfield Estates",city:"Leesburg",county:"Loudoun",st:"VA",lat:39.1000,lng:-77.5600,price:1100000,priceTxt:"from ~$1.1M",sqft:"up to 5,668",type:"Single-Family",status:"Coming Soon",walk:28,school:8,url:"https://www.tollbrothers.com/luxury-homes/Loudoun-County-VA"},
+ {n:"Townes of Prince William",city:"Woodbridge",county:"Prince William",st:"VA",lat:38.6600,lng:-77.2700,price:550000,priceTxt:"from ~$550K",sqft:"1,903–2,224",type:"Townhome",status:"Coming Soon",walk:35,school:6,url:"https://www.tollbrothers.com/luxury-homes/Community-VA"},
+ {n:"Fredericksburg Communities",city:"Fredericksburg",county:"Spotsylvania",st:"VA",lat:38.3000,lng:-77.4600,price:600000,priceTxt:"from ~$600K",sqft:"varies",type:"Single-Family",status:"See site",walk:30,school:6,url:"https://www.tollbrothers.com/luxury-homes/Fredericksburg-VA"}
+];
+
+const SCHOOL = [
+ {n:"Walt Whitman HS",city:"Bethesda",st:"MD",lat:38.9700,lng:-77.1400,r:10,d:"Montgomery County PS"},
+ {n:"Thomas S. Wootton HS",city:"Rockville",st:"MD",lat:39.1010,lng:-77.1820,r:9,d:"Montgomery County PS"},
+ {n:"River Hill HS",city:"Clarksville",st:"MD",lat:39.2020,lng:-76.9500,r:10,d:"Howard County PS"},
+ {n:"Marriotts Ridge HS",city:"Marriottsville",st:"MD",lat:39.3000,lng:-76.9000,r:9,d:"Howard County PS"},
+ {n:"Severna Park HS",city:"Severna Park",st:"MD",lat:39.0840,lng:-76.5450,r:9,d:"Anne Arundel County PS"},
+ {n:"Thomas Jefferson HSST",city:"Alexandria",st:"VA",lat:38.8190,lng:-77.1690,r:10,d:"Fairfax (magnet, #1 in US)"},
+ {n:"Langley HS",city:"McLean",st:"VA",lat:38.9540,lng:-77.1800,r:10,d:"Fairfax County PS"},
+ {n:"Briar Woods HS",city:"Ashburn",st:"VA",lat:38.9780,lng:-77.5200,r:9,d:"Loudoun County PS"},
+ {n:"Lightridge HS",city:"Aldie",st:"VA",lat:38.9300,lng:-77.5600,r:9,d:"Loudoun County PS"},
+ {n:"Battlefield HS",city:"Haymarket",st:"VA",lat:38.8120,lng:-77.6360,r:8,d:"Prince William County PS"},
+ {n:"Deep Run HS",city:"Glen Allen",st:"VA",lat:37.6600,lng:-77.6100,r:9,d:"Henrico County PS"},
+ {n:"Mills Godwin HS",city:"Henrico",st:"VA",lat:37.6200,lng:-77.5900,r:9,d:"Henrico County PS"},
+ {n:"Maggie L. Walker Gov. School",city:"Richmond",st:"VA",lat:37.5520,lng:-77.4600,r:10,d:"Regional magnet"},
+ {n:"Midlothian HS",city:"Midlothian",st:"VA",lat:37.5100,lng:-77.6500,r:8,d:"Chesterfield County PS"},
+ {n:"Riverbend HS",city:"Fredericksburg",st:"VA",lat:38.3300,lng:-77.5400,r:7,d:"Spotsylvania County PS"}
+];
+
+/* ============ MAP SETUP ============ */
+const map = L.map('map',{zoomControl:true}).setView([38.85,-77.25],8);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  attribution:'© OpenStreetMap © CARTO', subdomains:'abcd', maxZoom:19
+}).addTo(map);
+
+function haversine(a,b,c,d){const R=3958.8,t=x=>x*Math.PI/180;
+  const dl=t(c-a),dn=t(d-b);const h=Math.sin(dl/2)**2+Math.cos(t(a))*Math.cos(t(c))*Math.sin(dn/2)**2;
+  return R*2*Math.asin(Math.sqrt(h));}
+
+function pin(color,size,label){return L.divIcon({className:'',html:
+  `<div class="pin" style="width:${size}px;height:${size}px;background:${color}">${label||''}</div>`,
+  iconSize:[size,size],iconAnchor:[size/2,size/2]});}
+
+const C={hosp:'#d6553f',nicu:'#7dd181',home:'#c9a84c',school:'#4fb0c6'};
+const layers={hosp:L.layerGroup().addTo(map),home:L.layerGroup().addTo(map),school:L.layerGroup().addTo(map)};
+const markers={hosp:[],home:[],school:[]};
+
+/* nearest hospital helpers */
+function nearest(lat,lng,nicuOnly){let best=null,bd=1e9;
+  HOSP.forEach(h=>{if(nicuOnly&&!h.nicu)return;const dd=haversine(lat,lng,h.lat,h.lng);
+    if(dd<bd){bd=dd;best=h;}});return best?{h:best,d:bd}:null;}
+
+/* ---- build hospital markers ---- */
+HOSP.forEach(h=>{
+  const isN=!!h.nicu;
+  const m=L.marker([h.lat,h.lng],{icon:pin(isN?C.nicu:C.hosp,h.home?20:15,h.home?'★':'')});
+  const tagN=isN?`<span class="tag" style="background:${C.nicu};color:#0f0f0f">NICU · ${h.nicu}</span>`:'';
+  const homeTag=h.home?`<span class="tag" style="background:${C.home};color:#0f0f0f">Your hospital</span>`:'';
+  m.bindPopup(`<div class="pop"><h3>${h.n}</h3>${homeTag}
+    <span class="tag" style="background:#2a2a2a;color:var(--gold)">Hospitalist program</span>${tagN}
+    <div class="row"><b>System</b> ${h.sys}</div>
+    <div class="row"><b>Location</b> ${h.city}, ${h.st}</div>
+    <div class="row" style="margin-top:6px"><a class="gold" target="_blank" href="${h.url}">Careers / apply →</a></div></div>`);
+  m._d={st:h.st,nicu:isN,hospitalist:true};
+  markers.hosp.push(m);
+});
+
+/* ---- build home markers ---- */
+HOME.forEach(o=>{
+  const m=L.marker([o.lat,o.lng],{icon:pin(C.home,16)});
+  const near=nearest(o.lat,o.lng,false), nearN=nearest(o.lat,o.lng,true);
+  const sc='★'.repeat(o.school)+'☆'.repeat(10-o.school);
+  m.bindPopup(`<div class="pop"><h3>${o.n}</h3>
+    <span class="tag" style="background:${C.home};color:#0f0f0f">${o.type}</span>
+    <span class="tag" style="background:#2a2a2a;color:#cfcabd">${o.status}</span>
+    <div class="row"><b>Price</b> ${o.priceTxt}</div>
+    <div class="row"><b>Size</b> ${o.sqft} sq ft</div>
+    <div class="row"><b>Where</b> ${o.city}, ${o.county} Co., ${o.st}</div>
+    <div class="row"><b>Walk Score</b> ${o.walk} <span style="color:#666">(est.)</span></div>
+    <div class="row"><b>Area schools</b> <span style="color:${C.school};letter-spacing:1px">${sc}</span> ${o.school}/10 <span style="color:#666">(est.)</span></div>
+    ${near?`<div class="row"><b>Nearest hospital</b> ${near.h.n.replace(/ Hospital.*/,'')} · ${near.d.toFixed(1)} mi</div>`:''}
+    ${nearN?`<div class="row"><b>Nearest NICU</b> ${nearN.h.n.replace(/ Hospital.*/,'')} · ${nearN.d.toFixed(1)} mi</div>`:''}
+    <div class="row" style="margin-top:6px"><a class="gold" target="_blank" href="${o.url}">View community →</a></div></div>`);
+  m._d={st:o.st,price:o.price};
+  markers.home.push(m);
+});
+
+/* ---- build school markers ---- */
+SCHOOL.forEach(s=>{
+  const m=L.marker([s.lat,s.lng],{icon:pin(C.school,13)});
+  const q=encodeURIComponent(s.n+' '+s.city+' '+s.st);
+  m.bindPopup(`<div class="pop"><h3>${s.n}</h3>
+    <span class="tag" style="background:${C.school};color:#0f0f0f">Rating ${s.r}/10 (est.)</span>
+    <div class="row"><b>District</b> ${s.d}</div>
+    <div class="row"><b>Location</b> ${s.city}, ${s.st}</div>
+    <div class="row" style="margin-top:6px"><a target="_blank" href="https://www.greatschools.org/search/search.page?q=${q}">GreatSchools profile →</a></div></div>`);
+  m._d={st:s.st};
+  markers.school.push(m);
+});
+
+/* ============ FILTER ENGINE ============ */
+const state={on:{hosp:true,home:true,school:true},stateF:'all',hospitalist:true,neoOnly:false,priceMax:1500000};
+
+function render(){
+  ['hosp','home','school'].forEach(k=>{
+    layers[k].clearLayers();
+    if(!state.on[k])return;
+    markers[k].forEach(m=>{
+      const d=m._d;
+      if(state.stateF!=='all'&&d.st!==state.stateF)return;
+      if(k==='hosp'){
+        if(state.hospitalist&&!d.hospitalist)return;
+        if(state.neoOnly&&!d.nicu)return;
+      }
+      if(k==='home'){ if(d.price>state.priceMax)return; }
+      m.addTo(layers[k]);
+    });
+  });
+  updateCounts();
+}
+function updateCounts(){
+  const c={hosp:0,home:0,school:0};
+  ['hosp','home','school'].forEach(k=>{ c[k]=layers[k].getLayers().length; });
+  document.getElementById('cHosp').textContent=c.hosp;
+  document.getElementById('cHome').textContent=c.home;
+  document.getElementById('cSch').textContent=c.school;
+}
+
+/* layer toggles */
+document.querySelectorAll('.layer').forEach(el=>{
+  el.addEventListener('click',()=>{const l=el.dataset.l;state.on[l]=!state.on[l];
+    el.classList.toggle('off',!state.on[l]);render();});
+});
+/* state segment */
+document.querySelectorAll('#stateSeg button').forEach(b=>{
+  b.addEventListener('click',()=>{document.querySelectorAll('#stateSeg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');state.stateF=b.dataset.s;render();});
+});
+/* hospital focus */
+document.getElementById('fHospitalist').addEventListener('change',e=>{state.hospitalist=e.target.checked;render();});
+document.getElementById('fNeo').addEventListener('change',e=>{state.neoOnly=e.target.checked;render();});
+/* price range */
+const pr=document.getElementById('priceRange'),po=document.getElementById('priceOut');
+pr.addEventListener('input',e=>{const v=+e.target.value;state.priceMax=v;
+  po.textContent=v>=1500000?'$1.5M+':'$'+(v/1000)+'K';render();});
+
+render();
+</script>
+</body>
+</html>
