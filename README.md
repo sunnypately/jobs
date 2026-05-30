@@ -10,9 +10,11 @@ relocation search across two specialty tracks (hospitalist and neonatology).
 
 - **Hospitals (29)** across MD / DC / VA. NICU/neonatology sites are flagged
   with their level of care; every pin links to that system's careers page.
-- **Toll Brothers communities (12)** with starting prices, square footage, and
-  build status. Each home auto-computes distance to the nearest hospital and the
-  nearest NICU, plus an estimated Walk Score and area school rating.
+- **New-construction communities (22)** from six builders — Toll Brothers,
+  Craftmark, Williamsburg, Atlantic, Mitchell, and Botero — with starting prices,
+  square footage, and build status. Each home auto-computes distance to the nearest
+  hospital and the nearest NICU, plus an estimated Walk Score and area school rating.
+  Pin color encodes the builder; toggle builders on/off in the sidebar.
 - **Top public schools (15)** with district and GreatSchools links.
 
 ## Controls
@@ -21,8 +23,9 @@ relocation search across two specialty tracks (hospitalist and neonatology).
 - Filter by state (MD / DC / VA)
 - Show NICU-only hospitals
 - Drag the price-ceiling slider to hide homes above budget
-- Average compensation bands for both specialties + direct apply links
-  (SHM, AAP PedJobs, PracticeLink, NEJM, Indeed)
+- Average compensation bands for both specialties + direct apply links, all
+  verified live May 2026 (SHM Career Center, AAP PedJobs, APA, PracticeLink, NEJM,
+  Indeed) plus each hospital system's recruitment portal
 
 ## Data notes
 
@@ -33,8 +36,9 @@ relocation search across two specialty tracks (hospitalist and neonatology).
   to orient the search; verify each via the in-app links.
 - **Live, not frozen:** Job openings change daily, so the map links to careers
   pages and boards rather than listing static postings.
-- Toll Brothers builds little in metro Richmond — the home layer concentrates in
-  Northern Virginia and the Maryland DC suburbs.
+- Toll Brothers, Craftmark and Botero concentrate in NoVA / MD DC suburbs; Atlantic
+  covers Fredericksburg/Stafford; Williamsburg is MD-only; Mitchell builds on-your-lot
+  across central VA, the closest option to Johnston-Willis.
 
 ## Stack
 
